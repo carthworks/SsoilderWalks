@@ -430,10 +430,19 @@ export default function ThreeMultiLayerStage({
       const t = simRef.current.timeOfDay;
       const w = simRef.current.weather;
 
+      // ===============================================
+      // STRIDE & GROUND OFFSET PHYSICAL KINEMATICS
+      // ===============================================
+      const STRIDE = 1.62;                          // metres travelled per full cycle
+      const BASE_CYCLE_DURATION = 1.496;            // seconds per full cycle at 1.0x
+      const CYCLE = BASE_CYCLE_DURATION / curSpeed; // seconds per full cycle
+      const speed = STRIDE / CYCLE;                 // m/s — background scrolls at exactly this
+      const TILE_WIDTH = 58.0;                      // world width of background plane
+
       if (isPlay) {
-        simRef.current.scrollDistance += dt * 1.8 * curSpeed;
+        simRef.current.scrollDistance = (simRef.current.scrollDistance + speed * dt) % TILE_WIDTH;
       }
-      const scroll = simRef.current.scrollDistance;
+      const groundOffset = simRef.current.scrollDistance;
 
       // Smooth Camera Damping Parallax
       simRef.current.mouseX += (simRef.current.targetMouseX - simRef.current.mouseX) * 0.05;
@@ -453,7 +462,8 @@ export default function ThreeMultiLayerStage({
       const currentSoldier = simRef.current.soldierMesh;
       const soldierShad = (simRef.current as any).soldierShadow as THREE.Mesh;
       if (currentSoldier) {
-        const pace = elapsedTime * 4.2 * curSpeed;
+        // Exact stride cycle phase coupling (2 * PI radians per full CYCLE)
+        const pace = (elapsedTime * (Math.PI * 2 / BASE_CYCLE_DURATION)) * curSpeed;
         if (isPlay) {
           // Double-frequency vertical step curve (gravitational compression on heel strike)
           const verticalBob = Math.abs(Math.sin(pace)) * 0.16;
@@ -497,7 +507,7 @@ export default function ThreeMultiLayerStage({
       const currentHorse = simRef.current.horseMesh;
       const horseShad = (simRef.current as any).horseShadow as THREE.Mesh;
       if (currentHorse) {
-        const horsePace = elapsedTime * 4.2 * curSpeed + Math.PI * 0.3;
+        const horsePace = (elapsedTime * (Math.PI * 2 / BASE_CYCLE_DURATION)) * curSpeed + Math.PI * 0.3;
         if (isPlay) {
           const horseBob = Math.abs(Math.sin(horsePace * 2)) * 0.12;
           const horseTilt = Math.sin(horsePace) * 0.025;
@@ -540,17 +550,19 @@ export default function ThreeMultiLayerStage({
         const bgMat = bg.material as THREE.MeshStandardMaterial;
         if (bgMat && bgMat.map) {
           // As soldier strides forward (facing left), landscape moves backward (panning right)
-          bgMat.map.offset.x = (1.0 - (scroll * 0.006) % 1.0) % 1.0;
+          const uvOffset = groundOffset / TILE_WIDTH;
+          bgMat.map.offset.x = (1.0 - (uvOffset % 1.0)) % 1.0;
         }
         // Subtle vertical camera breathing
         bg.position.y = 2.0 + Math.sin(elapsedTime * 0.3) * 0.04;
       }
 
       // Audio footstep & hoofbeat synchronization
+      const stepIntervalMs = (CYCLE * 1000) / 4;
       const now = performance.now();
-      if (isPlay && now - lastStepTime > 340 / curSpeed) {
+      if (isPlay && now - lastStepTime > stepIntervalMs) {
         lastStepTime = now;
-        const phase = Math.floor(elapsedTime * 4.0 * curSpeed) % 4;
+        const phase = Math.floor((elapsedTime / (CYCLE / 4))) % 4;
         if (phase === 0 || phase === 2) {
           calmAudio.triggerStep('soldier', 0.8);
         } else {
