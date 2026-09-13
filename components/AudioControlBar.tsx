@@ -25,8 +25,12 @@ export default function AudioControlBar() {
   const [windVol, setWindVol] = useState<number>(0.4);
   const [stepsVol, setStepsVol] = useState<number>(0.35);
   const [showMixer, setShowMixer] = useState<boolean>(false);
-  const [customTrackName, setCustomTrackName] = useState<string | null>(null);
+  const [customTrackName, setCustomTrackName] = useState<string>('Dawn Temple Garden');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    calmAudio.loadTrackFromUrl('/music/Dawn Temple Garden.mp3', 'Dawn Temple Garden');
+  }, []);
 
   const togglePlay = () => {
     const running = calmAudio.toggle();
@@ -45,6 +49,15 @@ export default function AudioControlBar() {
     } else {
       setIsMuted(true);
       calmAudio.setMasterVolume(0);
+    }
+  };
+
+  const handleSelectDefaultTrack = async () => {
+    const name = await calmAudio.loadTrackFromUrl('/music/Dawn Temple Garden.mp3', 'Dawn Temple Garden');
+    setCustomTrackName(name);
+    if (!isPlaying) {
+      calmAudio.start();
+      setIsPlaying(true);
     }
   };
 
@@ -79,16 +92,16 @@ export default function AudioControlBar() {
           title={isPlaying ? 'Pause calm music background' : 'Start calm music background'}
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          <span className="font-sans text-xs">{isPlaying ? 'Playing Music' : 'Start Calm Music'}</span>
+          <span className="font-sans text-xs">{isPlaying ? 'Playing Music' : 'Play Background Music'}</span>
         </button>
 
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5 text-stone-300 font-medium">
-            <Music className="w-3.5 h-3.5 text-amber-400" />
-            <span>{customTrackName ? customTrackName : 'Ancient Bansuri Flute & Drone'}</span>
+        <div className="flex flex-col cursor-pointer" onClick={handleSelectDefaultTrack} title="Click to reload Dawn Temple Garden track">
+          <div className="flex items-center gap-1.5 text-stone-200 font-semibold">
+            <Music className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span>{customTrackName}</span>
           </div>
-          <span className="text-[10px] text-stone-400">
-            {customTrackName ? 'Custom Audio Loop' : 'Calm 432Hz Ambient Soundscape'}
+          <span className="text-[10px] text-amber-400/80">
+            Historical Background Music (music/ folder)
           </span>
         </div>
       </div>

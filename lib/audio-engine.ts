@@ -72,14 +72,45 @@ class CalmMusicEngine {
     if (this.isRunning) return;
     this.isRunning = true;
 
+    // If no custom audio loaded yet, load default background track from public/music
+    if (!this.customAudioEl && typeof window !== 'undefined') {
+      this.loadTrackFromUrl('/music/Dawn Temple Garden.mp3', 'Dawn Temple Garden');
+    }
+
     this.startDrone();
     this.startAmbience();
     this.startMelodyLoop();
     this.startTempleBells();
 
-    if (this.customAudioEl && !this.customAudioEl.paused) {
+    if (this.customAudioEl) {
       this.customAudioEl.play().catch(() => {});
     }
+  }
+
+  public loadTrackFromUrl(url: string, title: string = 'Dawn Temple Garden'): Promise<string> {
+    return new Promise((resolve) => {
+      try {
+        this.initContext();
+        if (this.customAudioEl) {
+          this.customAudioEl.pause();
+          this.customAudioEl = null;
+        }
+
+        const audio = new Audio(url);
+        audio.loop = true;
+        audio.volume = this.config.masterVolume;
+        this.customAudioEl = audio;
+
+        if (this.isRunning) {
+          audio.play().catch(() => {});
+        }
+
+        resolve(title);
+      } catch (err) {
+        console.error('Error loading track from URL:', err);
+        resolve(title);
+      }
+    });
   }
 
   public stop() {
