@@ -25,7 +25,7 @@ export default function AudioControlBar() {
   const [windVol, setWindVol] = useState<number>(0.4);
   const [stepsVol, setStepsVol] = useState<number>(0.35);
   const [showMixer, setShowMixer] = useState<boolean>(false);
-  const [customTrackName, setCustomTrackName] = useState<string>('Dawn Temple Garden');
+  const [customTrackName, setCustomTrackName] = useState<string | null>('Dawn Temple Garden');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -98,7 +98,7 @@ export default function AudioControlBar() {
         <div className="flex flex-col cursor-pointer" onClick={handleSelectDefaultTrack} title="Click to reload Dawn Temple Garden track">
           <div className="flex items-center gap-1.5 text-stone-200 font-semibold">
             <Music className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>{customTrackName}</span>
+            <span>{customTrackName || 'Procedural Ancient Soundscape'}</span>
           </div>
           <span className="text-[10px] text-amber-400/80">
             Historical Background Music (music/ folder)
