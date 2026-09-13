@@ -229,35 +229,13 @@ export default function ThreeMultiLayerStage({
       return new THREE.Mesh(geo, mat);
     };
 
-    // Load Atlas Image to cleanly carve out individual elements in 3D
+    // Load Atlas Image to carve out the horse, flag, ground, and rocks in 3D
     const atlasImg = new Image();
     atlasImg.crossOrigin = 'anonymous';
     atlasImg.src = '/all-aparted.png';
 
     atlasImg.onload = () => {
-      // 2. LAYER -12: Distant Golden Mountain Crest (top-left region)
-      const mountFarTex = extractSubTextureFromAtlas(atlasImg, 0.175, 0.0, 0.335, 0.24);
-      const mountFarMesh = buildLayerMesh(mountFarTex, 22, 9.5);
-      mountFarMesh.position.set(-3.5, 3.2, -12);
-      scene.add(mountFarMesh);
-      // Store in ref for animation
-      (simRef.current as any).mountFarPeak = mountFarMesh;
-
-      // 3. LAYER -10: Waterfall Peaks & Gorge (top-right region)
-      const waterfallTex = extractSubTextureFromAtlas(atlasImg, 0.51, 0.0, 0.27, 0.28);
-      const waterfallMesh = buildLayerMesh(waterfallTex, 18, 8.5);
-      waterfallMesh.position.set(4.8, 2.2, -10);
-      scene.add(waterfallMesh);
-      simRef.current.waterfallMesh = waterfallMesh;
-
-      // 4. LAYER -7: Mid Mountain Ridge (middle region)
-      const mountMidTex = extractSubTextureFromAtlas(atlasImg, 0.29, 0.21, 0.48, 0.15);
-      const mountMidMesh = buildLayerMesh(mountMidTex, 26, 7.0);
-      mountMidMesh.position.set(0, 0.8, -7);
-      scene.add(mountMidMesh);
-      simRef.current.mountainMidMesh = mountMidMesh;
-
-      // 5. LAYER -2.2: Royal White War Stallion (center horse region)
+      // 2. LAYER -2.2: Royal White War Stallion (center horse region)
       const horseTex = extractSubTextureFromAtlas(atlasImg, 0.32, 0.28, 0.53, 0.50);
       const horseMesh = buildLayerMesh(horseTex, 11, 8.5);
       horseMesh.position.set(3.2, -2.1, -2.2);
@@ -499,34 +477,16 @@ export default function ThreeMultiLayerStage({
       }
 
       // ===============================================
-      // MILD SEAMLESS 3D SCENE LOOP & ULTRA-SLOW MOUNTAIN PARALLAX
+      // MILD SEAMLESS 3D SCENE LOOP & SERENE BACKGROUND PAN
       // ===============================================
       const bg = simRef.current.mountainFarMesh;
       if (bg) {
         const bgMat = bg.material as THREE.MeshStandardMaterial;
         if (bgMat && bgMat.map) {
-          // Ultra-slow serene panoramic drift loop for the entire mountain landscape
+          // Ultra-slow serene panoramic drift loop for the entire landscape
           bgMat.map.offset.x = (scroll * 0.003) % 1;
         }
         bg.position.y = 2.0 + Math.sin(elapsedTime * 0.3) * 0.05;
-      }
-
-      const farPeak = (simRef.current as any).mountFarPeak as THREE.Mesh;
-      if (farPeak) {
-        // Very slow distant peak parallax
-        farPeak.position.x = -((scroll * 0.01) % 22) - 3.5;
-      }
-
-      const waterfall = simRef.current.waterfallMesh;
-      if (waterfall) {
-        // Very slow waterfall mountain gorge parallax
-        waterfall.position.x = -((scroll * 0.02) % 20) + 4.8;
-      }
-
-      const mountMid = simRef.current.mountainMidMesh;
-      if (mountMid) {
-        // Very slow mid ridge parallax
-        mountMid.position.x = -((scroll * 0.04) % 18);
       }
 
       const ground = simRef.current.groundMesh;
