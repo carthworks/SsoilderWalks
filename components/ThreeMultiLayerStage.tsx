@@ -159,13 +159,14 @@ export default function ThreeMultiLayerStage({
     scene.add(bgMesh);
     simRef.current.mountainFarMesh = bgMesh;
 
-    // Helper to slice sub-regions from the atlas image with clean black background chroma-keying
+    // Helper to slice sub-regions from the atlas image with clean chroma-keying & edge feathering
     const extractSubTextureFromAtlas = (
       img: HTMLImageElement,
       sx: number,
       sy: number,
       sw: number,
-      sh: number
+      sh: number,
+      featherBorder: number = 8
     ): THREE.CanvasTexture => {
       const canvas = document.createElement('canvas');
       const pw = Math.max(1, Math.round(sw * img.naturalWidth));
@@ -187,18 +188,34 @@ export default function ThreeMultiLayerStage({
           ph
         );
 
-        // Alpha key out pure black background from sprite atlas
+        // Alpha key out pure black background and soften quad boundary edges
         const imgData = ctx.getImageData(0, 0, pw, ph);
         const data = imgData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          const maxVal = Math.max(r, g, b);
-          if (maxVal < 14) {
-            data[i + 3] = 0;
-          } else if (maxVal < 28) {
-            data[i + 3] = Math.round(((maxVal - 14) / 14) * 255);
+        for (let y = 0; y < ph; y++) {
+          for (let x = 0; x < pw; x++) {
+            const i = (y * pw + x) * 4;
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const maxVal = Math.max(r, g, b);
+
+            let alpha = 255;
+            if (maxVal < 18) {
+              alpha = 0;
+            } else if (maxVal < 36) {
+              alpha = Math.round(((maxVal - 18) / 18) * 255);
+            }
+
+            // Soft border fade so rectangular crop seams are completely invisible
+            if (featherBorder > 0 && alpha > 0) {
+              const distToEdge = Math.min(x, pw - 1 - x, y, ph - 1 - y);
+              if (distToEdge < featherBorder) {
+                const edgeFactor = distToEdge / featherBorder;
+                alpha = Math.round(alpha * edgeFactor);
+              }
+            }
+
+            data[i + 3] = alpha;
           }
         }
         ctx.putImageData(imgData, 0, 0);
@@ -229,52 +246,70 @@ export default function ThreeMultiLayerStage({
       return new THREE.Mesh(geo, mat);
     };
 
-    // Load Atlas Image to carve out the horse, flag, ground, and rocks in 3D
+    // Load Atlas Image to carve out the royal horse and tiger standard flag in 3D
     const atlasImg = new Image();
     atlasImg.crossOrigin = 'anonymous';
     atlasImg.src = '/all-aparted.png';
 
     atlasImg.onload = () => {
-      // 2. LAYER -2.2: Royal White War Stallion (center horse region)
-      const horseTex = extractSubTextureFromAtlas(atlasImg, 0.32, 0.28, 0.53, 0.50);
-      const horseMesh = buildLayerMesh(horseTex, 11, 8.5);
-      horseMesh.position.set(3.2, -2.1, -2.2);
+      // 2. LAYER -1.2: Royal White War Stallion (cleanly extracted with feathering & firmly grounded)
+      const horseTex = extractSubTextureFromAtlas(atlasImg, 0.33, 0.29, 0.51, 0.47, 10);
+      const horseMesh = buildLayerMesh(horseTex, 10.2, 7.8);
+      horseMesh.position.set(2.2, -2.4, -1.2);
       scene.add(horseMesh);
       simRef.current.horseMesh = horseMesh;
 
-      // 6. LAYER -0.6: Royal Tiger Standard Flag Banner (top-right banner)
-      const flagTex = extractSubTextureFromAtlas(atlasImg, 0.78, 0.0, 0.215, 0.53);
-      const flagMesh = buildLayerMesh(flagTex, 5.2, 9.0, 24, 24);
-      flagMesh.position.set(5.8, -0.2, -0.6);
+      // 3. LAYER -0.4: Royal Tiger Standard Flag Banner (grounded in 3D space)
+      const flagTex = extractSubTextureFromAtlas(atlasImg, 0.785, 0.015, 0.205, 0.515, 10);
+      const flagMesh = buildLayerMesh(flagTex, 4.8, 8.4, 24, 24);
+      flagMesh.position.set(5.4, -0.6, -0.4);
       scene.add(flagMesh);
       simRef.current.flagMesh = flagMesh;
-
-      // 7. LAYER 2.6: Cobblestone Path Ground Strip (Positioned lower along bottom baseline)
-      const groundTex = extractSubTextureFromAtlas(atlasImg, 0.0, 0.785, 0.57, 0.095);
-      groundTex.wrapS = THREE.RepeatWrapping;
-      groundTex.wrapT = THREE.ClampToEdgeWrapping;
-      groundTex.repeat.set(3.0, 1);
-      const groundMesh = buildLayerMesh(groundTex, 48, 5.0);
-      groundMesh.position.set(0, -6.8, 2.6);
-      groundMesh.rotation.x = -Math.PI / 14;
-      scene.add(groundMesh);
-      simRef.current.groundMesh = groundMesh;
-
-      // 8. LAYER 4.4: Foreground Boulders & Foliage (Positioned lower along bottom right corner)
-      const fgRocksTex = extractSubTextureFromAtlas(atlasImg, 0.58, 0.765, 0.41, 0.235);
-      const fgRocksMesh = buildLayerMesh(fgRocksTex, 15, 4.8);
-      fgRocksMesh.position.set(5.2, -6.4, 4.4);
-      scene.add(fgRocksMesh);
-      simRef.current.foregroundRocksMesh = fgRocksMesh;
     };
 
-    // 9. LAYER 1.8: THE ONLY HERO CHOLA SOLDIER (Foreground Walking Prince grounded on path)
+    // 4. Contact Ground Shadows for Soldier and Horse (Physics & Ground Contact)
+    const createShadowDisc = (w: number, h: number) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const grad = ctx.createRadialGradient(64, 32, 0, 64, 32, 60);
+        grad.addColorStop(0, 'rgba(10, 8, 6, 0.65)');
+        grad.addColorStop(0.5, 'rgba(10, 8, 6, 0.3)');
+        grad.addColorStop(1, 'rgba(10, 8, 6, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 128, 64);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      const geo = new THREE.PlaneGeometry(w, h);
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+      });
+      return new THREE.Mesh(geo, mat);
+    };
+
+    const soldierShadow = createShadowDisc(5.5, 1.8);
+    soldierShadow.position.set(-1.8, -5.8, 1.5);
+    soldierShadow.rotation.x = -Math.PI / 10;
+    scene.add(soldierShadow);
+    (simRef.current as any).soldierShadow = soldierShadow;
+
+    const horseShadow = createShadowDisc(7.0, 2.2);
+    horseShadow.position.set(2.2, -5.7, -1.2);
+    horseShadow.rotation.x = -Math.PI / 10;
+    scene.add(horseShadow);
+    (simRef.current as any).horseShadow = horseShadow;
+
+    // 5. LAYER 1.6: THE ONLY HERO CHOLA SOLDIER (Firmly Planted on Ground)
     const soldierTex = textureLoader.load('/all-aparted-person.png');
     soldierTex.colorSpace = THREE.SRGBColorSpace;
     soldierTex.minFilter = THREE.LinearFilter;
     soldierTex.magFilter = THREE.LinearFilter;
 
-    const soldierGeo = new THREE.PlaneGeometry(8.0, 10.2, 32, 32);
+    const soldierGeo = new THREE.PlaneGeometry(8.4, 10.8, 32, 32);
     const soldierMat = new THREE.MeshStandardMaterial({
       map: soldierTex,
       transparent: true,
@@ -284,11 +319,11 @@ export default function ThreeMultiLayerStage({
       depthWrite: false,
     });
     const soldierMesh = new THREE.Mesh(soldierGeo, soldierMat);
-    soldierMesh.position.set(-2.0, -2.6, 1.8);
+    soldierMesh.position.set(-1.8, -1.75, 1.6);
     scene.add(soldierMesh);
     simRef.current.soldierMesh = soldierMesh;
 
-    // 10. 3D Natural Lighting Setup (Soft volumetric sunlight without harsh circular masks)
+    // 6. 3D Natural Lighting Setup
     const ambientLight = new THREE.AmbientLight(0xfff0db, 1.45);
     scene.add(ambientLight);
     simRef.current.ambientLight = ambientLight;
@@ -303,7 +338,7 @@ export default function ThreeMultiLayerStage({
     scene.add(pointLight);
     simRef.current.pointLight = pointLight;
 
-    // 12. 3D GPU Particle Systems (Golden Dust Motes)
+    // 7. 3D GPU Particle Systems (Golden Dust Motes)
     const pCount = 260;
     const pGeo = new THREE.BufferGeometry();
     const pPos = new Float32Array(pCount * 3);
@@ -340,7 +375,7 @@ export default function ThreeMultiLayerStage({
     scene.add(particles);
     simRef.current.particles = particles;
 
-    // 13. 3D Soaring Eagle
+    // 8. 3D Soaring Eagle
     const eagleGroup = new THREE.Group();
     const wingGeo = new THREE.BufferGeometry();
     const wingVerts = new Float32Array([
@@ -362,7 +397,7 @@ export default function ThreeMultiLayerStage({
     scene.add(eagleGroup);
     simRef.current.eagleMesh = eagleGroup;
 
-    // 14. Resize Handling
+    // 9. Resize Handling
     const handleResize = () => {
       if (!container || !camera || !renderer) return;
       const w = container.clientWidth;
@@ -373,7 +408,7 @@ export default function ThreeMultiLayerStage({
     };
     window.addEventListener('resize', handleResize);
 
-    // 15. Mouse / Gyro 3D Perspective Tracking
+    // 10. Mouse / Gyro 3D Perspective Tracking
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -383,7 +418,7 @@ export default function ThreeMultiLayerStage({
     };
     container.addEventListener('mousemove', handleMouseMove);
 
-    // 16. Main 60fps WebGL Animation Loop
+    // 11. Main 60fps WebGL Animation Loop with Realistic Gravity & Physics
     let clock = new THREE.Clock();
     let lastStepTime = 0;
 
@@ -405,37 +440,48 @@ export default function ThreeMultiLayerStage({
       simRef.current.mouseY += (simRef.current.targetMouseY - simRef.current.mouseY) * 0.05;
 
       const breatheZoom = Math.sin(elapsedTime * 0.35) * 0.4;
-      const walkPan = isPlay ? Math.sin(elapsedTime * 0.25 * curSpeed) * 0.6 : 0;
+      const walkPan = isPlay ? Math.sin(elapsedTime * 0.25 * curSpeed) * 0.4 : 0;
 
       camera.position.x = simRef.current.mouseX * 1.3 + walkPan;
       camera.position.y = simRef.current.mouseY * 0.95;
       camera.position.z = 16 + breatheZoom;
-      camera.lookAt(walkPan * 0.3, 0, 0);
+      camera.lookAt(walkPan * 0.2, -0.4, 0);
 
       // ===============================================
-      // REAL BIOMECHANICAL WALKING KINEMATICS FOR THE ONLY HERO SOLDIER
+      // BIOMECHANICAL WALKING KINEMATICS & GRAVITY (SOLDIER)
       // ===============================================
       const currentSoldier = simRef.current.soldierMesh;
+      const soldierShad = (simRef.current as any).soldierShadow as THREE.Mesh;
       if (currentSoldier) {
         const pace = elapsedTime * 4.2 * curSpeed;
         if (isPlay) {
-          // Double-frequency vertical stepping bounce (heel strike & push-off)
-          const verticalBob = Math.abs(Math.sin(pace)) * 0.22;
+          // Double-frequency vertical step curve (gravitational compression on heel strike)
+          const verticalBob = Math.abs(Math.sin(pace)) * 0.16;
           // Stride sway and forward lunging pendulum
-          const strideTiltZ = Math.sin(pace) * 0.045;
-          const strideTiltX = Math.cos(pace) * 0.035;
+          const strideTiltZ = Math.sin(pace) * 0.04;
+          const strideTiltX = Math.cos(pace) * 0.03;
 
-          currentSoldier.position.y = -2.6 + verticalBob;
-          currentSoldier.position.x = -2.0 + Math.sin(pace * 0.5) * 0.12;
+          // Feet firmly touch the land at -1.75 during ground contact
+          currentSoldier.position.y = -1.75 + verticalBob;
+          currentSoldier.position.x = -1.8 + Math.sin(pace * 0.5) * 0.08;
           currentSoldier.rotation.z = strideTiltZ;
           currentSoldier.rotation.x = strideTiltX;
 
-          // Flowing cape & silk sash cloth wave deformation in 3D
+          // Dynamic ground contact shadow response
+          if (soldierShad) {
+            soldierShad.position.x = currentSoldier.position.x;
+            const shadowScale = 1.0 - (verticalBob / 0.16) * 0.25;
+            soldierShad.scale.set(shadowScale, shadowScale, 1);
+            const shadMat = soldierShad.material as THREE.MeshBasicMaterial;
+            if (shadMat) shadMat.opacity = 0.65 - (verticalBob / 0.16) * 0.25;
+          }
+
+          // Inertial flowing cape & sash cloth wave simulation
           const pos = currentSoldier.geometry.attributes.position;
           for (let i = 0; i < pos.count; i++) {
             const vx = pos.getX(i);
             const vy = pos.getY(i);
-            // Wave cape edges trailing behind
+            // Wave cape edges trailing behind against headwind
             if (vx < 0.2) {
               const wave = Math.sin(elapsedTime * 6.5 + vy * 3.2) * (0.14 - vx * 0.05);
               pos.setZ(i, wave);
@@ -446,17 +492,28 @@ export default function ThreeMultiLayerStage({
       }
 
       // ===============================================
-      // ROYAL WHITE WAR STALLION TROTTING
+      // ROYAL WHITE WAR STALLION TROTTING & HOOF CONTACT
       // ===============================================
       const currentHorse = simRef.current.horseMesh;
+      const horseShad = (simRef.current as any).horseShadow as THREE.Mesh;
       if (currentHorse) {
         const horsePace = elapsedTime * 4.2 * curSpeed + Math.PI * 0.3;
         if (isPlay) {
-          const horseBob = Math.abs(Math.sin(horsePace * 2)) * 0.16;
-          const horseTilt = Math.sin(horsePace) * 0.03;
-          currentHorse.position.y = -2.1 + horseBob;
-          currentHorse.position.x = 3.2 + Math.sin(horsePace * 0.5) * 0.1;
+          const horseBob = Math.abs(Math.sin(horsePace * 2)) * 0.12;
+          const horseTilt = Math.sin(horsePace) * 0.025;
+
+          // Hooves firmly touch the land terrain at -2.40
+          currentHorse.position.y = -2.40 + horseBob;
+          currentHorse.position.x = 2.2 + Math.sin(horsePace * 0.5) * 0.08;
           currentHorse.rotation.z = horseTilt;
+
+          if (horseShad) {
+            horseShad.position.x = currentHorse.position.x;
+            const hScale = 1.0 - (horseBob / 0.12) * 0.2;
+            horseShad.scale.set(hScale, hScale, 1);
+            const hShadMat = horseShad.material as THREE.MeshBasicMaterial;
+            if (hShadMat) hShadMat.opacity = 0.6 - (horseBob / 0.12) * 0.2;
+          }
         }
       }
 
@@ -469,7 +526,6 @@ export default function ThreeMultiLayerStage({
         for (let i = 0; i < pos.count; i++) {
           const vx = pos.getX(i);
           const vy = pos.getY(i);
-          // Wave flag silk in wind
           const wave = Math.sin(elapsedTime * 5.0 + vx * 2.0 + vy * 1.5) * 0.22 * (vx + 2.4);
           pos.setZ(i, wave);
         }
@@ -477,31 +533,17 @@ export default function ThreeMultiLayerStage({
       }
 
       // ===============================================
-      // MILD SEAMLESS 3D SCENE LOOP & SERENE BACKGROUND PAN
+      // BACKWARD BACKGROUND PARALLAX SCROLL (RELATIVE TO FORWARD MARCH)
       // ===============================================
       const bg = simRef.current.mountainFarMesh;
       if (bg) {
         const bgMat = bg.material as THREE.MeshStandardMaterial;
         if (bgMat && bgMat.map) {
-          // Ultra-slow serene panoramic drift loop for the entire landscape
-          bgMat.map.offset.x = (scroll * 0.003) % 1;
+          // As soldier strides forward (facing left), landscape moves backward (panning right)
+          bgMat.map.offset.x = (1.0 - (scroll * 0.006) % 1.0) % 1.0;
         }
-        bg.position.y = 2.0 + Math.sin(elapsedTime * 0.3) * 0.05;
-      }
-
-      const ground = simRef.current.groundMesh;
-      if (ground) {
-        const groundMat = ground.material as THREE.MeshStandardMaterial;
-        if (groundMat && groundMat.map) {
-          // Slow, smooth, and seamless ground texture scroll
-          groundMat.map.offset.x = (scroll * 0.08) % 1;
-        }
-      }
-
-      const fgRocks = simRef.current.foregroundRocksMesh;
-      if (fgRocks) {
-        // Gentle foreground rocks drift
-        fgRocks.position.x = -((scroll * 0.25) % 24) + 5.2;
+        // Subtle vertical camera breathing
+        bg.position.y = 2.0 + Math.sin(elapsedTime * 0.3) * 0.04;
       }
 
       // Audio footstep & hoofbeat synchronization
