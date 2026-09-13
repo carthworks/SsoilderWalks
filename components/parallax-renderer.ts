@@ -14,6 +14,232 @@ export interface Particle {
   rotSpeed: number;
 }
 
+/**
+ * Photorealistic Stage Renderer with Cinematic Lighting & Particle FX
+ */
+export function drawRealisticArtworkStage(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement | null,
+  w: number,
+  h: number,
+  t: TimeOfDay,
+  time: number,
+  speed: number,
+  isPlaying: boolean,
+  weather: WeatherEffect,
+  particles: Particle[],
+  eagleX: number,
+  eagleY: number
+) {
+  if (!img || !img.complete || img.naturalWidth === 0) {
+    // Fallback loading placeholder if image is still loading
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#1c1917');
+    grad.addColorStop(1, '#0c0a09');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Loading High-Definition Chola Warrior Artwork...', w / 2, h / 2);
+    return;
+  }
+
+  ctx.save();
+
+  // 1. Cinematic Camera Pan & Subtle Walking Cadence Drift
+  const zoom = 1.05 + Math.sin(time * 0.0005) * 0.02;
+  const panX = isPlaying ? Math.sin(time * 0.0003 * speed) * 35 : 0;
+  const panY = isPlaying ? Math.cos(time * 0.0004 * speed) * 12 : 0;
+  const walkBob = isPlaying ? Math.sin(time * 0.0045 * speed) * 4 : 0;
+
+  ctx.translate(w / 2, h / 2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-w / 2 + panX, -h / 2 + panY + walkBob);
+
+  // Draw base high-resolution image
+  ctx.drawImage(img, 0, 0, w, h);
+
+  ctx.restore();
+
+  // 2. Dynamic Time-of-Day Lighting Shaders
+  ctx.save();
+  const sunX = w * 0.22 + panX * 0.5;
+  const sunY = h * 0.24 + panY * 0.5;
+
+  if (t === 'dawn') {
+    // Warm morning golden rays from the rising sun behind the peaks
+    const sunGrad = ctx.createRadialGradient(sunX, sunY, 20, sunX, sunY, 700);
+    sunGrad.addColorStop(0, 'rgba(255, 240, 180, 0.45)');
+    sunGrad.addColorStop(0.35, 'rgba(251, 191, 36, 0.22)');
+    sunGrad.addColorStop(0.7, 'rgba(249, 115, 22, 0.12)');
+    sunGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = sunGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle volumetric god-rays
+    const rayCount = 8;
+    for (let r = 0; r < rayCount; r++) {
+      const rayAngle = ((r / rayCount) * Math.PI * 0.6) - 0.2 + Math.sin(time * 0.0008 + r) * 0.05;
+      const rayLen = 900;
+      ctx.beginPath();
+      ctx.moveTo(sunX, sunY);
+      ctx.lineTo(
+        sunX + Math.cos(rayAngle - 0.08) * rayLen,
+        sunY + Math.sin(rayAngle - 0.08) * rayLen
+      );
+      ctx.lineTo(
+        sunX + Math.cos(rayAngle + 0.08) * rayLen,
+        sunY + Math.sin(rayAngle + 0.08) * rayLen
+      );
+      ctx.closePath();
+      const rayGrad = ctx.createRadialGradient(sunX, sunY, 30, sunX, sunY, rayLen);
+      rayGrad.addColorStop(0, 'rgba(255, 245, 200, 0.18)');
+      rayGrad.addColorStop(0.8, 'rgba(251, 191, 36, 0.05)');
+      rayGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      ctx.fillStyle = rayGrad;
+      ctx.fill();
+    }
+  } else if (t === 'noon') {
+    // Clear crisp high-noon ambience
+    const noonGrad = ctx.createLinearGradient(0, 0, 0, h);
+    noonGrad.addColorStop(0, 'rgba(186, 230, 253, 0.12)');
+    noonGrad.addColorStop(0.5, 'rgba(254, 240, 138, 0.08)');
+    noonGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = noonGrad;
+    ctx.fillRect(0, 0, w, h);
+  } else if (t === 'sunset') {
+    // Intense crimson & amber sunset glow
+    const sunsetGrad = ctx.createRadialGradient(sunX, sunY, 30, sunX, sunY, 800);
+    sunsetGrad.addColorStop(0, 'rgba(255, 180, 100, 0.5)');
+    sunsetGrad.addColorStop(0.3, 'rgba(244, 63, 94, 0.3)');
+    sunsetGrad.addColorStop(0.7, 'rgba(190, 24, 93, 0.2)');
+    sunsetGrad.addColorStop(1, 'rgba(40, 10, 30, 0.35)');
+    ctx.globalCompositeOperation = 'color-burn';
+    ctx.fillStyle = sunsetGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Warm highlights overlay
+    ctx.globalCompositeOperation = 'screen';
+    const sunsetLight = ctx.createLinearGradient(0, 0, w, h);
+    sunsetLight.addColorStop(0, 'rgba(251, 146, 60, 0.25)');
+    sunsetLight.addColorStop(1, 'rgba(168, 85, 247, 0.15)');
+    ctx.fillStyle = sunsetLight;
+    ctx.fillRect(0, 0, w, h);
+  } else {
+    // Mystical Midnight Chola Moonlight Filter
+    ctx.globalCompositeOperation = 'multiply';
+    const nightTone = ctx.createLinearGradient(0, 0, 0, h);
+    nightTone.addColorStop(0, '#0f172a');
+    nightTone.addColorStop(0.5, '#1e293b');
+    nightTone.addColorStop(1, '#090d16');
+    ctx.fillStyle = nightTone;
+    ctx.fillRect(0, 0, w, h);
+
+    // Soft silver moonlight highlight
+    ctx.globalCompositeOperation = 'screen';
+    const moonGrad = ctx.createRadialGradient(w * 0.25, h * 0.2, 10, w * 0.25, h * 0.2, 500);
+    moonGrad.addColorStop(0, 'rgba(224, 242, 254, 0.45)');
+    moonGrad.addColorStop(0.5, 'rgba(147, 197, 253, 0.15)');
+    moonGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = moonGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Twinkling stars in the night sky region
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    for (let i = 0; i < 70; i++) {
+      const sx = ((i * 197.3) % (w * 0.85)) + w * 0.05;
+      const sy = ((i * 73.7) % (h * 0.38));
+      const starBlink = Math.sin(time * 0.003 + i * 2) * 0.4 + 0.6;
+      ctx.globalAlpha = starBlink;
+      ctx.beginPath();
+      ctx.arc(sx, sy, (i % 4 === 0 ? 1.8 : 1.1), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1.0;
+  }
+  ctx.restore();
+
+  // 3. Dynamic Soaring Mountain Eagle
+  ctx.save();
+  const egX = ((eagleX % (w + 400)) + (w + 400)) % (w + 400) - 200;
+  const egY = eagleY;
+  const flap = Math.sin(time * 0.006) * 6;
+  ctx.fillStyle = t === 'night' ? 'rgba(15, 23, 42, 0.7)' : 'rgba(30, 20, 10, 0.85)';
+  ctx.beginPath();
+  ctx.moveTo(egX, egY);
+  ctx.quadraticCurveTo(egX - 12, egY - 10 + flap, egX - 25, egY - 6 + flap);
+  ctx.quadraticCurveTo(egX - 14, egY + 2, egX, egY + 3);
+  ctx.quadraticCurveTo(egX + 14, egY + 2, egX + 25, egY - 6 + flap);
+  ctx.quadraticCurveTo(egX + 12, egY - 10 + flap, egX, egY);
+  ctx.fill();
+  ctx.restore();
+
+  // 4. Atmospheric Weather Simulation (Particles, Golden Dust, Mist, Rain)
+  ctx.save();
+  if (weather === 'golden-dust' || weather === 'mist' || weather === 'rain') {
+    particles.forEach((p) => {
+      // Update particle position
+      if (isPlaying) {
+        p.x += p.speedX * speed;
+        p.y += p.speedY * speed;
+        p.angle += p.rotSpeed;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+      }
+
+      if (weather === 'golden-dust') {
+        // Glowing gold/amber light particles
+        const glowColor =
+          t === 'night'
+            ? 'rgba(190, 220, 255, '
+            : t === 'sunset'
+            ? 'rgba(251, 146, 60, '
+            : 'rgba(253, 224, 71, ';
+        const pulse = Math.sin(time * 0.004 + p.angle) * 0.3 + 0.7;
+        ctx.fillStyle = glowColor + (p.opacity * pulse) + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (weather === 'mist') {
+        // Soft rolling mist clouds
+        const mistGrad = ctx.createRadialGradient(p.x, p.y, 5, p.x, p.y, p.size * 50);
+        mistGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+        mistGrad.addColorStop(0.6, 'rgba(255, 255, 255, 0.04)');
+        mistGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = mistGrad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 50, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (weather === 'rain') {
+        // Slanted rainfall streaks
+        ctx.strokeStyle = t === 'night' ? 'rgba(186, 230, 253, 0.35)' : 'rgba(255, 255, 255, 0.55)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - 14, p.y + 26);
+        ctx.stroke();
+      }
+    });
+  }
+  ctx.restore();
+
+  // 5. Cinematic Edge Vignette
+  ctx.save();
+  const vignette = ctx.createRadialGradient(w / 2, h / 2, w * 0.35, w / 2, h / 2, w * 0.65);
+  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vignette.addColorStop(0.8, 'rgba(0, 0, 0, 0.25)');
+  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.65)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+
 export function drawSky(
   ctx: CanvasRenderingContext2D,
   w: number,

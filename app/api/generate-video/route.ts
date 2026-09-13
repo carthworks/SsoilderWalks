@@ -57,8 +57,26 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('generate-video error:', error);
+    let errorMessage = error?.message || 'Failed to initiate video generation';
+    
+    // Parse nested JSON error strings from Google SDK if present
+    try {
+      if (typeof errorMessage === 'string' && errorMessage.startsWith('{')) {
+        const parsed = JSON.parse(errorMessage);
+        if (parsed?.error?.message) {
+          errorMessage = parsed.error.message;
+        }
+      }
+    } catch {
+      // Keep original errorMessage
+    }
+
+    if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota') || errorMessage.includes('429')) {
+      errorMessage = 'Veo Video Generation Quota Exceeded (429). Google Veo requires a billing-enabled Google AI Studio / GCP account. You can use the free Three.js 3D Walking Rig directly in the app!';
+    }
+
     return NextResponse.json(
-      { error: error?.message || 'Failed to initiate video generation' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

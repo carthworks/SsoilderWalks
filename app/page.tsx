@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import ThreeMultiLayerStage from '@/components/ThreeMultiLayerStage';
+import ThreeParallaxStage from '@/components/ThreeParallaxStage';
 import ParallaxCanvas from '@/components/ParallaxCanvas';
 import GameHudOverlay from '@/components/GameHudOverlay';
 import AudioControlBar from '@/components/AudioControlBar';
@@ -16,10 +18,13 @@ import {
   ChevronRight,
   Shield,
   Upload,
+  Box,
 } from 'lucide-react';
 
 export default function HomePage() {
-  const [showHud, setShowHud] = useState<boolean>(true);
+  const [stageEngine, setStageEngine] = useState<'three' | 'canvas'>('three');
+  const [showControls, setShowControls] = useState<boolean>(false);
+  const [showHud, setShowHud] = useState<boolean>(false);
   const [isVeoModalOpen, setIsVeoModalOpen] = useState<boolean>(false);
   const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
   const [activeBackgroundVideo, setActiveBackgroundVideo] = useState<string | null>(null);
@@ -46,60 +51,98 @@ export default function HomePage() {
           </div>
           <div>
             <h1 className="text-sm font-semibold text-stone-100 tracking-tight flex items-center gap-2">
-              Historical Soldier & Horse Walking Parallax
+              Historical Chola Soldier & Horse Walking
               <span className="hidden sm:inline-block text-[10px] uppercase font-mono tracking-wider bg-stone-900 border border-stone-700 text-amber-400 px-2 py-0.5 rounded-full">
-                Strategy Game Loop
+                Three.js 3D WebGL
               </span>
             </h1>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Strategy HUD Toggle */}
+          {/* MASTER SINGLE TOGGLE BUTTON FOR ALL OVERLAYS & CONTROLS */}
           <button
-            id="btn-header-hud-toggle"
-            onClick={() => setShowHud(!showHud)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5 border ${
-              showHud
-                ? 'bg-amber-950/60 border-amber-600/50 text-amber-300'
-                : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+            id="btn-master-toggle-controls"
+            onClick={() => {
+              const next = !showControls;
+              setShowControls(next);
+              setShowHud(next);
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 border shadow-lg ${
+              showControls
+                ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-amber-950/40'
+                : 'bg-stone-900 hover:bg-stone-800 border-stone-700 text-stone-300 hover:text-white'
             }`}
-            title="Toggle Civilization / Total War Style Game HUD"
+            title="Single Button: Toggle all overlay menus, toolbars, and HUD options on/off"
           >
-            <Compass className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Game HUD</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>{showControls ? 'Hide Overlays' : 'Options & Controls'}</span>
           </button>
 
-          {/* Switch back to Canvas if custom video is active */}
+          {/* Three.js / Canvas Engine Switcher (Shown when options open) */}
+          {showControls && (
+            <div className="flex items-center bg-stone-900 p-0.5 rounded-xl border border-stone-800 animate-fade-in">
+              <button
+                onClick={() => setStageEngine('three')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                  stageEngine === 'three'
+                    ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+                title="Three.js 3D WebGL Engine with Volumetric Lighting"
+              >
+                <Box className="w-3.5 h-3.5 text-amber-400" />
+                <span>Three.js 3D</span>
+              </button>
+              <button
+                onClick={() => setStageEngine('canvas')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                  stageEngine === 'canvas'
+                    ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+                title="2D HTML5 Canvas Parallax Engine"
+              >
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">2D Canvas</span>
+              </button>
+            </div>
+          )}
+
+          {/* Switch back to 3D Stage if custom video is active */}
           {activeBackgroundVideo && (
             <button
               onClick={() => setActiveBackgroundVideo(null)}
               className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-amber-400 border border-amber-500/40 rounded-xl text-xs transition flex items-center gap-1.5"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Back to Canvas</span>
+              <Box className="w-3.5 h-3.5" />
+              <span>Back to 3D Stage</span>
             </button>
           )}
 
           {/* Veo Video Studio Modal Trigger */}
-          <button
-            id="btn-header-open-veo"
-            onClick={() => setIsVeoModalOpen(true)}
-            className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-semibold rounded-xl text-xs transition shadow-lg flex items-center gap-1.5"
-            title="Open Veo Video Generator (Upload photo & generate with Veo 3.1)"
-          >
-            <Film className="w-3.5 h-3.5" />
-            <span>Generate with Veo</span>
-          </button>
+          {showControls && (
+            <button
+              id="btn-header-open-veo"
+              onClick={() => setIsVeoModalOpen(true)}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-semibold rounded-xl text-xs transition shadow-lg flex items-center gap-1.5 animate-fade-in"
+              title="Open Veo Video Generator"
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Generate with Veo</span>
+            </button>
+          )}
 
           {/* Info toggle */}
-          <button
-            onClick={() => setShowInfoDrawer(!showInfoDrawer)}
-            className="p-2 hover:bg-stone-800 rounded-xl text-stone-400 hover:text-stone-200 transition"
-            title="About Historical Background & Architecture"
-          >
-            <Info className="w-4 h-4" />
-          </button>
+          {showControls && (
+            <button
+              onClick={() => setShowInfoDrawer(!showInfoDrawer)}
+              className="p-2 hover:bg-stone-800 rounded-xl text-stone-400 hover:text-stone-200 transition"
+              title="About Historical Background & Architecture"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -107,6 +150,24 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col p-3 sm:p-6 max-w-7xl w-full mx-auto gap-4">
         {/* VIEWPORT CANVAS / VIDEO STAGE */}
         <div className="relative w-full rounded-2xl overflow-hidden shadow-2xl border border-stone-800 bg-stone-950">
+          {/* FLOATING CORNER SINGLE TOGGLE BUTTON (Directly on canvas) */}
+          <button
+            onClick={() => {
+              const next = !showControls;
+              setShowControls(next);
+              setShowHud(next);
+            }}
+            className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border transition-all duration-300 flex items-center gap-1.5 shadow-2xl ${
+              showControls
+                ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 opacity-90 hover:opacity-100'
+                : 'bg-stone-950/70 border-stone-800 text-stone-300 hover:text-white opacity-40 hover:opacity-100'
+            }`}
+            title="Click to show/hide all controls and options"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>{showControls ? 'Hide Overlays' : 'Options'}</span>
+          </button>
+
           {activeBackgroundVideo ? (
             <div className="relative w-full aspect-video bg-black">
               <video
@@ -116,28 +177,41 @@ export default function HomePage() {
                 loop
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-4 left-4 z-40 bg-stone-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-amber-300 flex items-center gap-2">
-                <Film className="w-3.5 h-3.5 text-amber-400" />
-                <span>Active Veo Generated Video Loop</span>
-              </div>
+              {showControls && (
+                <div className="absolute top-4 left-4 z-40 bg-stone-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-amber-300 flex items-center gap-2">
+                  <Film className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Active Veo Generated Video Loop</span>
+                </div>
+              )}
             </div>
+          ) : stageEngine === 'three' ? (
+            <ThreeMultiLayerStage
+              onCaptureFrameForVeo={handleCaptureFrameForVeo}
+              onOpenVeoStudio={() => setIsVeoModalOpen(true)}
+              showHud={showHud}
+              onToggleHud={() => setShowHud(!showHud)}
+              showControls={showControls}
+            />
           ) : (
             <ParallaxCanvas
               onCaptureFrameForVeo={handleCaptureFrameForVeo}
               onOpenVeoStudio={() => setIsVeoModalOpen(true)}
               showHud={showHud}
               onToggleHud={() => setShowHud(!showHud)}
+              showControls={showControls}
             />
           )}
 
-          {/* Strategy Game UI HUD Overlay (Active on both canvas and video) */}
-          <GameHudOverlay show={showHud} />
+          {/* Strategy Game UI HUD Overlay (Active on both canvas, 3D stage and video when showHud is true) */}
+          <GameHudOverlay show={showHud && showControls} />
         </div>
 
-        {/* CALM MUSIC BACKGROUND ENGINE CONTROLS */}
-        <div className="w-full">
-          <AudioControlBar />
-        </div>
+        {/* CALM MUSIC BACKGROUND ENGINE CONTROLS (Shown when showControls is true) */}
+        {showControls && (
+          <div className="w-full animate-fade-in">
+            <AudioControlBar />
+          </div>
+        )}
 
         {/* HISTORICAL STRATEGY GAME LORE & FEATURE GUIDE */}
         {showInfoDrawer && (

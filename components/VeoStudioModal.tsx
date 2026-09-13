@@ -94,6 +94,24 @@ export default function VeoStudioModal({
     }
   };
 
+  const loadPreloadedCholaArtwork = async () => {
+    try {
+      const res = await fetch('/soliter-tamil.png');
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (typeof e.target?.result === 'string') {
+          setImageBase64(e.target.result);
+          setImageFileName('soliter-tamil.png');
+          setImageMimeType('image/png');
+        }
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Failed to load preset artwork:', err);
+    }
+  };
+
   // AI Prompt Refiner
   const handleRefinePrompt = async () => {
     try {
@@ -135,14 +153,18 @@ export default function VeoStudioModal({
         }),
       });
 
-      if (!startRes.ok) {
-        const errorData = await startRes.json();
-        throw new Error(errorData.error || 'Failed to start video generation.');
+      const startData = await startRes.json().catch(() => ({}));
+      if (!startRes.ok || startData.error) {
+        setErrorMsg(startData.error || 'Failed to start video generation.');
+        setIsGenerating(false);
+        return;
       }
 
-      const { operationName } = await startRes.json();
+      const operationName = startData.operationName;
       if (!operationName) {
-        throw new Error('No operation name returned from model service.');
+        setErrorMsg('No operation name returned from model service.');
+        setIsGenerating(false);
+        return;
       }
 
       setProgressPercent(15);
@@ -174,14 +196,11 @@ export default function VeoStudioModal({
           body: JSON.stringify({ operationName }),
         });
 
-        if (!statusRes.ok) {
-          const err = await statusRes.json();
-          throw new Error(err.error || 'Status check failed.');
-        }
-
-        const statusData = await statusRes.json();
-        if (statusData.error) {
-          throw new Error(`Video generation error: ${JSON.stringify(statusData.error)}`);
+        const statusData = await statusRes.json().catch(() => ({}));
+        if (!statusRes.ok || statusData.error) {
+          setErrorMsg(statusData.error || 'Status check failed.');
+          setIsGenerating(false);
+          return;
         }
 
         if (statusData.done) {
@@ -200,8 +219,10 @@ export default function VeoStudioModal({
       });
 
       if (!downloadRes.ok) {
-        const err = await downloadRes.json();
-        throw new Error(err.error || 'Failed to download generated video.');
+        const errData = await downloadRes.json().catch(() => ({}));
+        setErrorMsg(errData.error || 'Failed to download generated video.');
+        setIsGenerating(false);
+        return;
       }
 
       const videoBlob = await downloadRes.blob();
@@ -323,6 +344,27 @@ export default function VeoStudioModal({
                       Upload warrior & horse artwork (PNG, JPG, WEBP)
                     </span>
                   </div>
+                )}
+              </div>
+
+              {/* Quick Preset Action */}
+              <div className="flex items-center justify-between text-xs mt-1.5 px-0.5">
+                <button
+                  type="button"
+                  onClick={loadPreloadedCholaArtwork}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 font-medium hover:underline flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Use Attached Artwork (soliter-tamil.png)</span>
+                </button>
+                {imageBase64 && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-[11px] text-stone-400 hover:text-stone-200"
+                  >
+                    Change photo
+                  </button>
                 )}
               </div>
             </div>
@@ -472,13 +514,27 @@ export default function VeoStudioModal({
           )}
 
           {errorMsg && (
-            <div className="flex items-start gap-3 bg-red-950/50 border border-red-500/40 rounded-2xl p-4 text-xs text-red-200">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <div className="font-semibold">Generation encountered an issue:</div>
-                <div className="text-red-300/90 font-mono text-[11px] break-all">{errorMsg}</div>
-                <div className="text-[11px] text-stone-400">
-                  Tip: Ensure your project has Veo access enabled or try with the Fast Preview model.
+            <div className="flex items-start gap-3 bg-red-950/60 border border-red-500/50 rounded-2xl p-4 text-xs text-red-200 animate-fade-in">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="space-y-2 flex-1">
+                <div className="font-semibold text-red-300">Veo Generation Notice</div>
+                <div className="text-red-200/90 leading-relaxed">{errorMsg}</div>
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-stone-950 font-bold rounded-xl text-xs transition shadow-md"
+                  >
+                    🚶‍♂️ Switch to Free In-Browser 3D Walking Rig
+                  </button>
+                  <a
+                    href="https://aistudio.google.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 rounded-xl text-xs transition"
+                  >
+                    Upgrade Google AI Studio Billing ↗
+                  </a>
                 </div>
               </div>
             </div>

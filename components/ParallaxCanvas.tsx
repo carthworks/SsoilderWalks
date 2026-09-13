@@ -15,12 +15,14 @@ import {
   Video,
   Film,
   Compass,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { calmAudio } from '@/lib/audio-engine';
 import {
   TimeOfDay,
   WeatherEffect,
   Particle,
+  drawRealisticArtworkStage,
   drawSky,
   drawCelestial,
   drawDistantMountains,
@@ -38,6 +40,7 @@ interface ParallaxCanvasProps {
   onOpenVeoStudio?: () => void;
   showHud: boolean;
   onToggleHud: () => void;
+  showControls?: boolean;
 }
 
 export default function ParallaxCanvas({
@@ -45,12 +48,15 @@ export default function ParallaxCanvas({
   onOpenVeoStudio,
   showHud,
   onToggleHud,
+  showControls = false,
 }: ParallaxCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const animFrameIdRef = useRef<number | null>(null);
+  const artImgRef = useRef<HTMLImageElement | null>(null);
 
   // User Interactive Settings
+  const [sceneMode, setSceneMode] = useState<'realistic' | 'vector'>('realistic');
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [speed, setSpeed] = useState<number>(1.0);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>('dawn');
@@ -64,6 +70,7 @@ export default function ParallaxCanvas({
 
   // Simulation State in Ref to prevent re-instantiating render loop
   const stateRef = useRef({
+    sceneMode: 'realistic' as 'realistic' | 'vector',
     scrollX: 0,
     walkPhase: 0,
     flagPhase: 0,
@@ -78,13 +85,24 @@ export default function ParallaxCanvas({
     particles: [] as Particle[],
   });
 
+  // Preload Realistic Artwork Image
+  useEffect(() => {
+    const img = new Image();
+    img.src = '/landscape-bg.jpg';
+    img.onload = () => {
+      artImgRef.current = img;
+    };
+    artImgRef.current = img;
+  }, []);
+
   // Keep stateRef synchronized with React state
   useEffect(() => {
+    stateRef.current.sceneMode = sceneMode;
     stateRef.current.isPlaying = isPlaying;
     stateRef.current.speed = speed;
     stateRef.current.timeOfDay = timeOfDay;
     stateRef.current.weather = weather;
-  }, [isPlaying, speed, timeOfDay, weather]);
+  }, [sceneMode, isPlaying, speed, timeOfDay, weather]);
 
   // Initialize atmospheric particles
   useEffect(() => {
@@ -158,71 +176,90 @@ export default function ParallaxCanvas({
       const scroll = stateRef.current.scrollX;
       const walk = stateRef.current.walkPhase;
 
-      // 1. SKY & ATMOSPHERE
-      drawSky(ctx, width, height, t, now);
+      if (stateRef.current.sceneMode === 'realistic') {
+        // 1. PHOTOREALISTIC CHOLA WARRIOR ARTWORK STAGE (Default)
+        drawRealisticArtworkStage(
+          ctx,
+          artImgRef.current,
+          width,
+          height,
+          t,
+          now,
+          stateRef.current.speed,
+          stateRef.current.isPlaying,
+          stateRef.current.weather,
+          stateRef.current.particles,
+          stateRef.current.eagleX,
+          stateRef.current.eagleY
+        );
+      } else {
+        // 2. PROCEDURAL 2D VECTOR PARALLAX ENGINE (Fallback Mode)
+        // 1. SKY & ATMOSPHERE
+        drawSky(ctx, width, height, t, now);
 
-      // 2. CELESTIAL & SUN RAYS
-      drawCelestial(
-        ctx,
-        width,
-        height,
-        t,
-        now,
-        stateRef.current.eagleX,
-        stateRef.current.eagleY
-      );
+        // 2. CELESTIAL & SUN RAYS
+        drawCelestial(
+          ctx,
+          width,
+          height,
+          t,
+          now,
+          stateRef.current.eagleX,
+          stateRef.current.eagleY
+        );
 
-      // 3. LAYER 0: Distant Mountain Range (0.08x scroll)
-      drawDistantMountains(ctx, width, height, scroll * 0.08, t);
+        // 3. LAYER 0: Distant Mountain Range (0.08x scroll)
+        drawDistantMountains(ctx, width, height, scroll * 0.08, t);
 
-      // 4. LAYER 1: Ancient Empire Fortress & Mountain Temples (0.22x scroll)
-      drawAncientEmpireFortress(
-        ctx,
-        width,
-        height,
-        scroll * 0.22,
-        t,
-        stateRef.current.flagPhase
-      );
+        // 4. LAYER 1: Ancient Empire Fortress & Mountain Temples (0.22x scroll)
+        drawAncientEmpireFortress(
+          ctx,
+          width,
+          height,
+          scroll * 0.22,
+          t,
+          stateRef.current.flagPhase
+        );
 
-      // 5. LAYER 2: Cascading Waterfalls & Misty Gorges (0.45x scroll)
-      drawWaterfallsAndGorge(
-        ctx,
-        width,
-        height,
-        scroll * 0.45,
-        t,
-        stateRef.current.waterfallPhase
-      );
+        // 5. LAYER 2: Cascading Waterfalls & Misty Gorges (0.45x scroll)
+        drawWaterfallsAndGorge(
+          ctx,
+          width,
+          height,
+          scroll * 0.45,
+          t,
+          stateRef.current.waterfallPhase
+        );
 
-      // 6. LAYER 3: Jungle Ridge & Roadway (0.75x scroll)
-      drawRidgeAndValley(ctx, width, height, scroll * 0.75, t);
+        // 6. LAYER 3: Jungle Ridge & Roadway (0.75x scroll)
+        drawRidgeAndValley(ctx, width, height, scroll * 0.75, t);
 
-      // 7. LAYER 4: Cobblestone Path & Inscribed Monolith (1.0x scroll)
-      drawPathAndMonolith(ctx, width, height, scroll * 1.0, t);
+        // 7. LAYER 4: Cobblestone Path & Inscribed Monolith (1.0x scroll)
+        drawPathAndMonolith(ctx, width, height, scroll * 1.0, t);
 
-      // 8. THE CHARACTERS (Centered hero positioning with walking biomechanics)
-      drawSoldierAndHorse(
-        ctx,
-        width,
-        height,
-        walk,
-        stateRef.current.flagPhase,
-        t
-      );
+        // 8. THE CHARACTERS (Centered hero positioning with walking biomechanics)
+        drawSoldierAndHorse(
+          ctx,
+          width,
+          height,
+          walk,
+          stateRef.current.flagPhase,
+          t
+        );
 
-      // 9. WEATHER & PARTICLES
-      drawAtmosphericWeather(
-        ctx,
-        width,
-        height,
-        stateRef.current.weather,
-        t,
-        stateRef.current.particles
-      );
+        // 9. WEATHER & PARTICLES
+        drawAtmosphericWeather(
+          ctx,
+          width,
+          height,
+          stateRef.current.weather,
+          t,
+          stateRef.current.particles
+        );
 
-      // 10. FOREGROUND CANOPY & VIGNETTE (1.35x scroll)
-      drawForegroundElements(ctx, width, height, scroll * 1.35, t);
+        // 10. FOREGROUND CANOPY & VIGNETTE (1.35x scroll)
+        drawForegroundElements(ctx, width, height, scroll * 1.35, t);
+      }
 
       animFrameIdRef.current = requestAnimationFrame(render);
     };
@@ -344,199 +381,218 @@ export default function ParallaxCanvas({
         className="w-full h-full object-cover block"
       />
 
-      {/* FLOATING QUICK CONTROLS BAR (Bottom Center) */}
-      <div
-        id="parallax-interactive-toolbar"
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 bg-stone-950/85 backdrop-blur-xl border border-stone-800/80 px-3.5 py-2 rounded-2xl shadow-2xl transition-opacity duration-300 opacity-95 group-hover:opacity-100"
-      >
-        {/* Play/Pause */}
-        <button
-          id="btn-play-pause"
-          onClick={() => setIsPlaying(!isPlaying)}
-          className="p-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-semibold transition"
-          title={isPlaying ? 'Pause Animation' : 'Play Animation'}
+      {/* FLOATING QUICK CONTROLS BAR (Bottom Center - Hidden when showControls is false) */}
+      {showControls && (
+        <div
+          id="parallax-interactive-toolbar"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 bg-stone-950/85 backdrop-blur-xl border border-stone-800/80 px-3.5 py-2 rounded-2xl shadow-2xl transition-all duration-300 opacity-95 group-hover:opacity-100 animate-fade-in"
         >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-        </button>
-
-        <div className="w-px h-5 bg-stone-800 mx-0.5" />
-
-        {/* Time of Day */}
-        <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800">
+          {/* Play/Pause */}
           <button
-            onClick={() => setTimeOfDay('dawn')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
-              timeOfDay === 'dawn'
-                ? 'bg-amber-500/20 text-amber-300 font-semibold'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Dawn / Golden Hour"
+            id="btn-play-pause"
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="p-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-semibold transition"
+            title={isPlaying ? 'Pause Animation' : 'Play Animation'}
           >
-            <SunriseIcon className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Dawn</span>
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
 
+          {/* Stage Art Mode Switcher: Realistic vs Vector */}
+          <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800">
+            <button
+              id="btn-mode-realistic"
+              onClick={() => setSceneMode('realistic')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                sceneMode === 'realistic'
+                  ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Photorealistic Chola Warrior Cinematic Stage"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Cinematic Art</span>
+            </button>
+
+            <button
+              id="btn-mode-vector"
+              onClick={() => setSceneMode('vector')}
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                sceneMode === 'vector'
+                  ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Procedural 2D Vector Canvas"
+            >
+              <span className="hidden sm:inline">2D Vector</span>
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-stone-800 mx-0.5" />
+
+          {/* Time of Day */}
+          <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800">
+            <button
+              onClick={() => setTimeOfDay('dawn')}
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
+                timeOfDay === 'dawn'
+                  ? 'bg-amber-500/20 text-amber-300 font-semibold'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Dawn / Golden Hour"
+            >
+              <SunriseIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Dawn</span>
+            </button>
+
+            <button
+              onClick={() => setTimeOfDay('noon')}
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
+                timeOfDay === 'noon'
+                  ? 'bg-sky-500/20 text-sky-300 font-semibold'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="High Noon Daylight"
+            >
+              <Sun className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">Noon</span>
+            </button>
+
+            <button
+              onClick={() => setTimeOfDay('sunset')}
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
+                timeOfDay === 'sunset'
+                  ? 'bg-rose-500/20 text-rose-300 font-semibold'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Sunset Twilight"
+            >
+              <Sunset className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">Sunset</span>
+            </button>
+
+            <button
+              onClick={() => setTimeOfDay('night')}
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
+                timeOfDay === 'night'
+                  ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Moonlit Night"
+            >
+              <Moon className="w-3.5 h-3.5 text-indigo-300" />
+              <span className="hidden sm:inline">Night</span>
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-stone-800 mx-0.5" />
+
+          {/* Weather & Atmosphere */}
+          <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800">
+            <button
+              onClick={() => setWeather('golden-dust')}
+              className={`p-1.5 rounded-lg transition ${
+                weather === 'golden-dust'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Atmospheric Golden Dust Particles"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setWeather('mist')}
+              className={`p-1.5 rounded-lg transition ${
+                weather === 'mist'
+                  ? 'bg-stone-500/20 text-stone-200'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Mountain Valley Mist"
+            >
+              <Wind className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setWeather('rain')}
+              className={`p-1.5 rounded-lg transition ${
+                weather === 'rain'
+                  ? 'bg-sky-500/20 text-sky-300'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Monsoon Mountain Rain"
+            >
+              <CloudRain className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-stone-800 mx-0.5" />
+
+          {/* Speed Slider */}
+          <div className="flex items-center gap-1.5 text-stone-300 text-xs px-1">
+            <span className="text-[11px] text-stone-400 font-mono">{speed.toFixed(1)}x</span>
+            <input
+              id="slider-gait-speed"
+              type="range"
+              min="0.4"
+              max="2.0"
+              step="0.1"
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              className="w-16 accent-amber-500 h-1.5 bg-stone-800 rounded-lg cursor-pointer"
+              title="Walking Gait Pace"
+            />
+          </div>
+
+          <div className="w-px h-5 bg-stone-800 mx-0.5" />
+
+          {/* Snapshot for Veo Studio */}
           <button
-            onClick={() => setTimeOfDay('noon')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
-              timeOfDay === 'noon'
-                ? 'bg-sky-500/20 text-sky-300 font-semibold'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="High Noon Daylight"
+            id="btn-snapshot-frame"
+            onClick={handleCaptureSnapshot}
+            className="px-2.5 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 transition flex items-center gap-1 text-xs"
+            title="Snapshot Current Frame for Veo 3.1 Video Generation"
           >
-            <Sun className="w-3.5 h-3.5 text-sky-400" />
-            <span className="hidden sm:inline">Noon</span>
+            <Camera className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Snapshot</span>
           </button>
 
+          {/* Record WebM Video Loop directly */}
           <button
-            onClick={() => setTimeOfDay('sunset')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
-              timeOfDay === 'sunset'
-                ? 'bg-rose-500/20 text-rose-300 font-semibold'
-                : 'text-stone-400 hover:text-stone-200'
+            id="btn-record-loop"
+            onClick={isRecording ? stopRecordingLoop : startRecordingLoop}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border ${
+              isRecording
+                ? 'bg-red-950 border-red-500 text-red-300 animate-pulse'
+                : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
             }`}
-            title="Sunset Twilight"
+            title={isRecording ? 'Stop Recording' : 'Record High-Definition Video Loop'}
           >
-            <Sunset className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">Sunset</span>
+            <Video className={`w-3.5 h-3.5 ${isRecording ? 'text-red-400' : 'text-amber-400'}`} />
+            <span>{isRecording ? `REC ${recordingSeconds}s` : 'Record'}</span>
           </button>
 
+          {/* Open Veo Studio Drawer */}
+          {onOpenVeoStudio && (
+            <button
+              id="btn-open-veo-drawer"
+              onClick={onOpenVeoStudio}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold transition flex items-center gap-1.5 text-xs shadow-lg"
+              title="Generate Video with Veo AI (Upload photo or use canvas)"
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Veo AI</span>
+            </button>
+          )}
+
+          {/* Fullscreen */}
           <button
-            onClick={() => setTimeOfDay('night')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition ${
-              timeOfDay === 'night'
-                ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Moonlit Night"
+            id="btn-fullscreen"
+            onClick={toggleFullscreen}
+            className="p-2 hover:bg-stone-800 rounded-xl text-stone-400 hover:text-stone-200 transition"
+            title="Toggle Fullscreen"
           >
-            <Moon className="w-3.5 h-3.5 text-indigo-300" />
-            <span className="hidden sm:inline">Night</span>
+            <Maximize2 className="w-4 h-4" />
           </button>
         </div>
-
-        <div className="w-px h-5 bg-stone-800 mx-0.5" />
-
-        {/* Weather & Atmosphere */}
-        <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800">
-          <button
-            onClick={() => setWeather('golden-dust')}
-            className={`p-1.5 rounded-lg transition ${
-              weather === 'golden-dust'
-                ? 'bg-amber-500/20 text-amber-300'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Atmospheric Golden Dust Particles"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setWeather('mist')}
-            className={`p-1.5 rounded-lg transition ${
-              weather === 'mist'
-                ? 'bg-stone-500/20 text-stone-200'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Mountain Valley Mist"
-          >
-            <Wind className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setWeather('rain')}
-            className={`p-1.5 rounded-lg transition ${
-              weather === 'rain'
-                ? 'bg-sky-500/20 text-sky-300'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Monsoon Mountain Rain"
-          >
-            <CloudRain className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <div className="w-px h-5 bg-stone-800 mx-0.5" />
-
-        {/* Speed Slider */}
-        <div className="flex items-center gap-1.5 text-stone-300 text-xs px-1">
-          <span className="text-[11px] text-stone-400 font-mono">{speed.toFixed(1)}x</span>
-          <input
-            id="slider-gait-speed"
-            type="range"
-            min="0.4"
-            max="2.0"
-            step="0.1"
-            value={speed}
-            onChange={(e) => setSpeed(parseFloat(e.target.value))}
-            className="w-16 accent-amber-500 h-1.5 bg-stone-800 rounded-lg cursor-pointer"
-            title="Walking Gait Pace"
-          />
-        </div>
-
-        <div className="w-px h-5 bg-stone-800 mx-0.5" />
-
-        {/* Snapshot for Veo Studio */}
-        <button
-          id="btn-snapshot-frame"
-          onClick={handleCaptureSnapshot}
-          className="px-2.5 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 transition flex items-center gap-1 text-xs"
-          title="Snapshot Current Frame for Veo 3.1 Video Generation"
-        >
-          <Camera className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden md:inline">Snapshot</span>
-        </button>
-
-        {/* Record WebM Video Loop directly */}
-        <button
-          id="btn-record-loop"
-          onClick={isRecording ? stopRecordingLoop : startRecordingLoop}
-          className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border ${
-            isRecording
-              ? 'bg-red-950 border-red-500 text-red-300 animate-pulse'
-              : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
-          }`}
-          title={isRecording ? 'Stop Recording' : 'Record High-Definition Video Loop'}
-        >
-          <Video className={`w-3.5 h-3.5 ${isRecording ? 'text-red-400' : 'text-amber-400'}`} />
-          <span>{isRecording ? `REC ${recordingSeconds}s` : 'Record'}</span>
-        </button>
-
-        {/* Open Veo Studio Drawer */}
-        {onOpenVeoStudio && (
-          <button
-            id="btn-open-veo-drawer"
-            onClick={onOpenVeoStudio}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold transition flex items-center gap-1.5 text-xs shadow-lg"
-            title="Generate Video with Veo AI (Upload photo or use canvas)"
-          >
-            <Film className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Veo AI</span>
-          </button>
-        )}
-
-        {/* Toggle Game HUD */}
-        <button
-          onClick={onToggleHud}
-          className={`p-2 rounded-xl border transition ${
-            showHud
-              ? 'bg-stone-800 text-amber-400 border-amber-500/40'
-              : 'text-stone-400 border-stone-800 hover:text-stone-200'
-          }`}
-          title="Toggle Strategy Game HUD"
-        >
-          <Compass className="w-4 h-4" />
-        </button>
-
-        {/* Fullscreen */}
-        <button
-          id="btn-fullscreen"
-          onClick={toggleFullscreen}
-          className="p-2 hover:bg-stone-800 rounded-xl text-stone-400 hover:text-stone-200 transition"
-          title="Toggle Fullscreen"
-        >
-          <Maximize2 className="w-4 h-4" />
-        </button>
-      </div>
+      )}
     </div>
   );
 }
